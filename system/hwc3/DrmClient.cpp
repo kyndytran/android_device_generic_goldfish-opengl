@@ -146,7 +146,15 @@ bool DrmClient::loadDrmDisplays() {
             return false;
         }
 
-        crtcs.emplace_back(std::move(crtc));
+	drmModeCrtcPtr crtcPtr;
+	crtcPtr = drmModeGetCrtc(mFd, crtcId);
+	if (crtcPtr) {
+	    if (crtcPtr->mode_valid) {
+	        DEBUG_LOG("%s: Adding valid crtc id %d", __FUNCTION__, crtcId);
+                crtcs.emplace_back(std::move(crtc));
+	    }
+	    drmModeFreeCrtc(crtcPtr);
+	}
     }
 
     for (uint32_t i = 0; i < drmResources->count_connectors; ++i) {
@@ -158,7 +166,20 @@ bool DrmClient::loadDrmDisplays() {
             return false;
         }
 
-        connectors.emplace_back(std::move(connector));
+	drmModeConnectorPtr conPtr;
+	conPtr = drmModeGetConnector(mFd, connectorId);
+	if (conPtr) {
+	    if (conPtr->connector_type == DRM_MODE_CONNECTOR_HDMIA) {
+		/* connector id 32 is for HDMI 0 - work with crtc id 96
+		 * connector id 42 is for HDMI 1
+		 */
+		if (connectorId == 32) {
+	           DEBUG_LOG("%s: Adding HDMI0 connector id %d", __FUNCTION__, connectorId);
+                   connectors.emplace_back(std::move(connector));
+		}
+	    }
+	    drmModeFreeConnector(conPtr);
+	}
     }
 
     drmModeFreeResources(drmResources);
