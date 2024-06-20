@@ -17,6 +17,7 @@
 #include "DrmClient.h"
 
 #include <cros_gralloc_handle.h>
+#include <android-base/properties.h>
 
 using ::android::base::guest::AutoReadLock;
 using ::android::base::guest::AutoWriteLock;
@@ -171,11 +172,27 @@ bool DrmClient::loadDrmDisplays() {
 	if (conPtr) {
 	    if (conPtr->connector_type == DRM_MODE_CONNECTOR_HDMIA) {
 		/* connector id 32 is for HDMI 0 - work with crtc id 96
-		 * connector id 42 is for HDMI 1
+		 * connector id 42 is for HDMI 1.
+		 * Other connector ids are for dummy or RGB. No valid crtc id for these ids
+		 * if devices are not plugged. So let's skip.
+		 * Check crtc/connector/encoder ids by command 'modetest -M vc4'
 		 */
-		if (connectorId == 32) {
-	           DEBUG_LOG("%s: Adding HDMI0 connector id %d", __FUNCTION__, connectorId);
-                   connectors.emplace_back(std::move(connector));
+		const std::string mode =
+                    ::android::base::GetProperty("persist.vendor.hwcomposer.dual_display", "0");
+		DEBUG_LOG("%s: sysprop persist.vendor.hwcomposer.dual_display is %s",
+                            __FUNCTION__, mode.c_str());
+
+		if ((mode == "1")) {
+		    if ((connectorId == 32) || (connectorId == 42)) {
+	               DEBUG_LOG("%s: Adding HDMI0 connector id %d", __FUNCTION__, connectorId);
+                       connectors.emplace_back(std::move(connector));
+		    }
+	        }
+	        else {
+		    if (connectorId == 32) {
+	               DEBUG_LOG("%s: Adding HDMI0 connector id %d", __FUNCTION__, connectorId);
+                       connectors.emplace_back(std::move(connector));
+		    }
 		}
 	    }
 	    drmModeFreeConnector(conPtr);

@@ -65,9 +65,7 @@ bool DrmConnector::update(::android::base::borrowed_fd drmFd) {
     drmModeFreeConnector(drmConnector);
 
     if (mStatus == DRM_MODE_CONNECTED) {
-        if (!loadEdid(drmFd)) {
-            return false;
-        }
+        loadEdid(drmFd);
     }
 
     DEBUG_LOG("%s: connector:%" PRIu32 " widthMillimeters:%" PRIu32 " heightMillimeters:%" PRIu32,
@@ -110,9 +108,20 @@ bool DrmConnector::loadEdid(::android::base::borrowed_fd drmFd) {
 
     byte_view descriptor(edid.data(), kEdidDescriptorLength);
     if (descriptor[0] == 0 && descriptor[1] == 0) {
+	drmModeConnector* drmConnector = drmModeGetConnector(drmFd.get(), mId);
+        if (!drmConnector) {
+            ALOGE("%s: Failed to load connector.", __FUNCTION__);
+            return false;
+        }
+
         ALOGE("%s: display:%" PRIu32 " is missing preferred detailed timing descriptor.",
               __FUNCTION__, mId);
-        return -1;
+	ALOGW("%s: Use fallback size from drmModeConnector. This can result inaccurate DPIs.",
+                  __FUNCTION__);
+	mWidthMillimeters = drmConnector->mmWidth;
+	mHeightMillimeters = drmConnector->mmHeight;
+        drmModeFreeConnector(drmConnector);
+        return false;
     }
 
     const uint8_t w_mm_lsb = descriptor[12];
